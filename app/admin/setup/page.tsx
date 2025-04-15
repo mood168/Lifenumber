@@ -1,42 +1,30 @@
 'use client';
 
 import React, { useState } from 'react';
-import { setupAdmin } from '../../utils/adminSetup';
 import Layout from '../../components/layout/Layout';
+import { addAdminUser } from '../../services/firestoreService';
+import { toast } from 'react-hot-toast';
 
 const AdminSetupPage = () => {
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [message, setMessage] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSetupAdmin = async () => {
-    if (!password) {
-      setStatus('error');
-      setMessage('請輸入密碼');
+  const handleAddAdmin = async () => {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('請輸入有效的 Email 地址');
       return;
     }
 
-    setStatus('loading');
+    setIsLoading(true);
     try {
-      await setupAdmin(password);
-      setStatus('success');
-      setMessage('管理員權限設置成功！');
-      setPassword(''); // 清空密碼
+      await addAdminUser(email);
+      toast.success(`已將 ${email} 設置為管理員`);
+      setEmail(''); // 清空輸入框
     } catch (error) {
-      setStatus('error');
-      if (error instanceof Error) {
-        if (error.message.includes('auth/wrong-password') || error.message.includes('auth/invalid-credential')) {
-          setMessage('密碼錯誤，請重試');
-        } else if (error.message.includes('auth/invalid-email')) {
-          setMessage('電子郵件格式無效');
-        } else if (error.message.includes('auth/user-not-found')) {
-          setMessage('找不到該用戶，請確認郵箱地址');
-        } else {
-          setMessage('設置失敗：' + error.message);
-        }
-      } else {
-        setMessage('發生未知錯誤');
-      }
+      toast.error('設置管理員失敗');
+      console.error('設置管理員時發生錯誤:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -49,38 +37,29 @@ const AdminSetupPage = () => {
 
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
           <p className="text-black dark:text-white mb-4">
-            將 moodapp2023@gmail.com 設置為管理員帳號。
+            將以下 Email 設置為管理員帳號。
           </p>
 
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1 text-black dark:text-white">
-              管理員密碼
+              管理員帳號 Email
             </label>
             <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:border-gray-600 text-black dark:text-white"
-              placeholder="請輸入密碼"
+              placeholder="請輸入 Email"
             />
           </div>
 
           <button
-            onClick={handleSetupAdmin}
-            disabled={status === 'loading'}
+            onClick={handleAddAdmin}
+            disabled={isLoading}
             className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-300 disabled:opacity-50"
           >
-            {status === 'loading' ? '設置中...' : '設置管理員'}
+            {isLoading ? '設置中...' : '設置管理員'}
           </button>
-
-          {message && (
-            <p className={`mt-4 text-center ${
-              status === 'success' ? 'text-green-600 dark:text-green-400' : 
-              status === 'error' ? 'text-red-600 dark:text-red-400' : ''
-            }`}>
-              {message}
-            </p>
-          )}
         </div>
       </div>
     </Layout>

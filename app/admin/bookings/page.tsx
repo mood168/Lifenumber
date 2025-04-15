@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../../components/layout/Layout';
 import { useAuth } from '../../context/AuthContext';
-import { getBookings, updateBookingStatus } from '../../services/firestoreService';
+import { getBookings, updateBookingStatus, isAdminUser } from '../../services/firestoreService';
 import { FaCheck, FaTimes } from 'react-icons/fa';
 
 interface Booking {
@@ -19,21 +19,41 @@ interface Booking {
   createdAt: string;
 }
 
-const BookingManagementPage = () => {
+const AdminBookingsPage = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+
+  const fetchBookings = async () => {
+    setIsLoading(true);
+    try {
+      const fetchedBookings = await getBookings();
+      setBookings(fetchedBookings);
+    } catch (error) {
+      console.error("獲取報名數據時發生錯誤:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadBookings = async () => {
-      if (user?.email === 'moodapp2023@gmail.com') {
-        const fetchedBookings = await getBookings();
-        setBookings(fetchedBookings);
+    const checkAdmin = async () => {
+      if (user) {
+        const isAdmin = await isAdminUser(user.email || '');
+        setIsAdmin(isAdmin);
+        if (isAdmin) {
+          fetchBookings();
+        }
+      } else {
+        setIsAdmin(false);
       }
-      setIsLoading(false);
     };
-    loadBookings();
-  }, [user]);
+    
+    if (!authLoading) {
+      checkAdmin();
+    }
+  }, [user, authLoading]);
 
   const handleStatusUpdate = async (bookingId: string, newStatus: 'approved' | 'rejected') => {
     try {
@@ -48,14 +68,12 @@ const BookingManagementPage = () => {
     }
   };
 
-  if (!user || user.email !== 'moodapp2023@gmail.com') {
-    return (
-      <Layout>
-        <div className="p-4">
-          <p className="text-center text-red-500">您沒有權限訪問此頁面</p>
-        </div>
-      </Layout>
-    );
+  if (isAdmin === null || authLoading) {
+    return <Layout><div className="text-center p-4">檢查權限中...</div></Layout>;
+  }
+
+  if (!isAdmin) {
+    return <Layout><div className="text-center p-4">您沒有權限訪問此頁面。</div></Layout>;
   }
 
   return (
@@ -128,11 +146,11 @@ const BookingManagementPage = () => {
             ))}
           </div>
         ) : (
-          <p className="text-center">目前沒有報名記錄</p>
+          <p className="text-center text-gray-700 dark:text-gray-500">目前沒有報名記錄</p>
         )}
       </div>
     </Layout>
   );
 };
 
-export default BookingManagementPage; 
+export default AdminBookingsPage; 

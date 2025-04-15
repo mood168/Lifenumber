@@ -8,16 +8,28 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Layout from './components/layout/Layout';
 import { useAuth } from './context/AuthContext';
 import Link from 'next/link';
-import { addHistoryEntry } from './services/firestoreService';
+import { addHistoryEntry, getUserProfile } from './services/firestoreService';
 
 export default function Home() {
-  const [birthdate, setBirthdate] = useState('1969-09-12');
+  const [birthdate, setBirthdate] = useState('');
   const [results, setResults] = useState<CalculationResults | null>(null);
   const { user, loading } = useAuth();
 
   useEffect(() => {
     console.log('首頁已加載', { user, loading });
   }, [user, loading]);
+
+  useEffect(() => {
+    const loadUserBirthdate = async () => {
+      if (user?.uid) {
+        const userProfile = await getUserProfile(user.uid);
+        if (userProfile?.birthDate) {
+          setBirthdate(userProfile.birthDate);
+        }
+      }
+    };
+    loadUserBirthdate();
+  }, [user]);
 
   const handleCalculate = async () => {
     try {

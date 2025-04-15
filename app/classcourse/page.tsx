@@ -16,14 +16,61 @@ const ClassCoursePage = () => {
   useEffect(() => {
     const fetchCourses = async () => {
       setIsLoading(true);
-      const fetchedCourses = await getCourses('date', 'asc'); // 按日期升序獲取
-      setCourses(fetchedCourses);
-      setIsLoading(false);
+      try {
+        const fetchedCourses = await getCourses('date', 'asc'); // 按日期升序獲取
+        
+        // 過濾掉過期課程
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // 設置時間為 00:00:00 以便比較
+
+        const upcomingCourses = fetchedCourses.filter(course => {
+          try {
+            // 假設日期格式為 'YYYY/MM/DD'
+            const [year, month, day] = course.date.split('/').map(Number);
+            const courseDate = new Date(year, month - 1, day); // 月份是 0-based
+            courseDate.setHours(0, 0, 0, 0);
+            return courseDate >= today; // 只保留今天或未來的課程
+          } catch (e) {
+            console.error(`解析課程日期時發生錯誤: ${course.date}`, e);
+            return false; // 無法解析日期，則不顯示
+          }
+        });
+
+        setCourses(upcomingCourses);
+      } catch (error) {
+        console.error("獲取課程時發生錯誤:", error);
+        setCourses([]); // 錯誤時清空課程
+      } finally {
+        setIsLoading(false);
+      }
     };
     fetchCourses();
   }, []);
 
-  const isAdmin = user && user.email === 'moodapp2023@gmail.com'; // 檢查是否為管理員
+  // 從FireStoreService中檢查是否為管理員
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (user && user.email) {
+        try {
+          const { isAdminUser } = await import('../services/firestoreService');
+          const adminStatus = await isAdminUser(user.email);
+          setIsAdmin(adminStatus);
+        } catch (error) {
+          console.error('檢查管理員狀態時發生錯誤:', error);
+          setIsAdmin(false);
+        }
+      } else {
+        setIsAdmin(false);
+      }
+    };
+
+    if (!authLoading) {
+      checkAdminStatus();
+    }
+  }, [user, authLoading]);
+
 
   return (
     <Layout>
@@ -34,13 +81,32 @@ const ClassCoursePage = () => {
           </h1>
           {/* 條件渲染管理員連結 */} 
           {!authLoading && isAdmin && (
-            <Link 
-              href="/admin/courses"
-              className="absolute right-0 top-1/2 -translate-y-1/2 sm:static sm:translate-y-0 sm:ml-4 px-3 py-1.5 bg-indigo-600 text-white text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition-colors duration-300 flex items-center whitespace-nowrap"
-            >
-               <FaCog className="mr-1 hidden sm:inline" />
-              課程管理
-            </Link>
+            <div className="flex gap-2">
+              <Link 
+                href="/admin/courses"
+                className="px-3 py-1.5 bg-indigo-600 text-white text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition-colors duration-300 flex items-center whitespace-nowrap"
+              >
+                <FaCog className="mr-1 hidden sm:inline" />
+                課程管理
+              </Link>
+              <Link 
+                href="/admin/bookings"
+                className="px-3 py-1.5 bg-indigo-600 text-white text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition-colors duration-300 flex items-center whitespace-nowrap"
+              >
+                <FaCog className="mr-1 hidden sm:inline" />
+                報名管理
+              </Link>
+              {/* 設置需要是登入帳戶為 mood1app2023@gmail.com 才會顯示此按鈕 */}
+              {user && user.email === 'mood1app2023@gmail.com' && (
+                <Link 
+                  href="/admin/setup"
+                  className="px-3 py-1.5 bg-indigo-600 text-white text-xs sm:text-sm rounded-md hover:bg-indigo-700 transition-colors duration-300 flex items-center whitespace-nowrap"
+                >
+                  <FaCog className="mr-1 hidden sm:inline" />
+                  設置
+                </Link>
+              )}
+            </div>
           )}
         </div>
 

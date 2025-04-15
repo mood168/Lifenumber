@@ -3,135 +3,58 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../../components/layout/Layout'; // 調整 Layout 路徑
 import { useAuth } from '../../context/AuthContext'; // 調整 AuthContext 路徑
-import { useRouter } from 'next/navigation';
 import {
   getCourses,
   addCourse,
   updateCourse,
   deleteCourse,
-  Course
+  isAdminUser,
+  type Course
 } from '../../services/firestoreService'; // 調整 firestoreService 路徑
 
-// 從您的數據中複製初始課程列表，用於遷移
-const initialCoursesData: Omit<Course, 'id'>[] = [
-    {
-      title: '生命靈數運用班',
-      subtitle: '#需先上完蔡建安老師的生命靈數課#',
-      description: '將深入案例講解，結合遊戲互動及特色卡牌運用，讓你在輕鬆的氣氛中探索自己與他人的生命奧秘，體驗全新的自我發現之旅！',
-      instructor: '陳瑞嬌老師',
-      duration: '4小時',
-      rating: 4.8,
-      students: 1280,
-      location: '台中(霧峰教室)',
-      date: '2025/05/10',
-      image: 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80',
-      register_url: 'https://meet-1350.com.tw/mycourse/after-class/53340/',
-      price: 'NT$ 1,280',
-      tag: '熱門'
-    },
-    {
-      title: '生命靈數運用班',
-      subtitle: '#需先上完蔡建安老師的生命靈數課#',
-      description: '將深入案例講解，結合遊戲互動及特色卡牌運用，讓你在輕鬆的氣氛中探索自己與他人的生命奧秘，體驗全新的自我發現之旅！',
-      instructor: '陳瑞嬌老師',
-      duration: '4小時',
-      rating: 4.8,
-      students: 1280,
-      location: '台北(9F小教室)',
-      date: '2025/05/7',
-      image: 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80',
-      register_url: 'https://meet-1350.com.tw/mycourse/after-class/53340/',
-      price: 'NT$ 1,280',
-      tag: '熱門'
-    },
-    {
-      title: '家庭能量光明燈',
-      subtitle: '發現生命靈數之光獨特色彩心靈之旅',
-      description: '色彩冒險結合生命靈數的補數顏色和土耳其燈的神秘光芒。透過生命靈數的啟示以獨特的方式探索內在特質，轉化為美麗的土耳其燈設計，為生命注入更多色彩和靈感。',
-      instructor: '陳瑞嬌老師',
-      duration: '4小時',
-      rating: 4.9,
-      students: 960,
-      location: '竹北市',
-      date: '2025/04/19',
-      image: 'https://images.unsplash.com/photo-1447015237013-0e80b2786dfc?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80',
-      register_url: 'https://meet-1350.com.tw/mycourse/after-class/53340/',
-      price: 'NT$ 1,580',
-      tag: '額滿'
-    },
-    {
-      title: '同學會能量光明燈',
-      subtitle: '發現生命靈數之光獨特色彩心靈之旅',
-      description: '色彩冒險結合生命靈數的補數顏色和土耳其燈的神秘光芒。透過生命靈數的啟示以獨特的方式探索內在特質，轉化為美麗的土耳其燈設計，為生命注入更多色彩和靈感。',
-      instructor: '陳瑞嬌老師',
-      duration: '4小時',
-      rating: 4.7,
-      students: 750,
-      location: '竹北市',
-      date: '2025/04/15',
-      image: 'https://images.unsplash.com/photo-1501139083538-0139583c060f?ixlib=rb-1.2.1&auto=format&fit=crop&w=400&q=80',
-      register_url: 'https://example.com/register_placeholder',
-      price: 'NT$ 1,380',
-      tag: '額滿'
-    }
-  ];
-
 export default function AdminCoursesPage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMigrating, setIsMigrating] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [currentCourse, setCurrentCourse] = useState<Partial<Course> | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-
-  // 身份驗證和數據加載
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login'); // 未登入則跳轉
-      // 在實際應用中，您還需要檢查用戶是否為管理員
-    } else if (user) {
-      fetchCourses();
-    }
-  }, [user, loading, router]);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   const fetchCourses = async () => {
-    setIsLoading(true);
-    const fetchedCourses = await getCourses('date', 'asc'); // 按日期升序獲取
-    setCourses(fetchedCourses);
-    setIsLoading(false);
+    setLoading(true);
+    try {
+      const fetchedCourses = await getCourses();
+      setCourses(fetchedCourses);
+    } catch (error) {
+      console.error("獲取課程數據時發生錯誤:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // 處理數據遷移
-  const handleMigrateData = async () => {
-    setIsMigrating(true);
-    const existingCourses = await getCourses();
-    if (existingCourses.length > 0) {
-        alert('Firestore 中已有課程資料，無需遷移。');
-        setIsMigrating(false);
-        return;
-    }
-
-    alert('即將開始將初始課程資料寫入 Firestore...');
-    let successCount = 0;
-    for (const course of initialCoursesData) {
-      const success = await addCourse(course);
-      if (success) {
-        successCount++;
+  useEffect(() => {
+    if (authLoading) return; // 等待認證加載完成
+    const checkAdmin = async () => {
+      if (user) {
+        const isAdmin = await isAdminUser(user.email || '');
+        setIsAdmin(isAdmin);
+        if (isAdmin) {
+          fetchCourses();
+        }
+      } else {
+        setIsAdmin(false);
       }
-    }
-    alert(`資料遷移完成！成功寫入 ${successCount} / ${initialCoursesData.length} 筆課程資料。`);
-    setIsMigrating(false);
-    fetchCourses(); // 重新獲取數據
-  };
+    };
+    checkAdmin();
+  }, [user, authLoading]); // 依賴 user 和 authLoading
 
   // 處理表單提交 (新增/編輯)
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!currentCourse) return;
 
-    setIsLoading(true);
+    setLoading(true);
     let success = false;
 
     if (isEditing) {
@@ -173,7 +96,7 @@ export default function AdminCoursesPage() {
           alert(isEditing ? '課程更新失敗！' : '課程新增失敗！');
        }
     }
-    setIsLoading(false);
+    setLoading(false);
   };
 
   // Helper function to check if all required fields for a new course are present
@@ -201,7 +124,7 @@ export default function AdminCoursesPage() {
     if (!courseId) return;
     const confirmed = window.confirm('確定要刪除此課程嗎？');
     if (confirmed) {
-      setIsLoading(true);
+      setLoading(true);
       const success = await deleteCourse(courseId);
       if (success) {
         fetchCourses(); // 重新加載列表
@@ -209,7 +132,7 @@ export default function AdminCoursesPage() {
       } else {
         alert('課程刪除失敗！');
       }
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -235,17 +158,17 @@ export default function AdminCoursesPage() {
   };
 
   // 表單輸入變化
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    setCurrentCourse(prev => ({
-      ...prev,
-      [name]: type === 'number' ? Number(value) : value,
-    }));
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setCurrentCourse(prev => prev ? { ...prev, [name]: value } : { [name]: value });
   };
 
+  if (isAdmin === null || authLoading) {
+    return <Layout><div className="text-center p-4">檢查權限中...</div></Layout>;
+  }
 
-  if (loading || isLoading && !isMigrating) {
-    return <Layout><div className="p-6 text-center">正在加載管理頁面...</div></Layout>;
+  if (!isAdmin) {
+    return <Layout><div className="text-center p-4">您沒有權限訪問此頁面。</div></Layout>;
   }
 
   const inputClasses = "mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-800 dark:text-white bg-white dark:bg-gray-700"; // 統一 Input 樣式並加入 text-gray-800
@@ -254,19 +177,10 @@ export default function AdminCoursesPage() {
   return (
     <Layout>
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4 text-center">課程管理</h1>
+        <h1 className="text-2xl font-bold mb-4 text-center text-gray-700 dark:text-gray-300">課程管理</h1>
 
         {/* 數據遷移按鈕 */}        
-        <div className="mb-4 text-center">
-          <button
-            onClick={handleMigrateData}
-            disabled={isMigrating || courses.length > 0} // 如果正在遷移或已有數據，則禁用
-            className={`px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-300 mr-2 ${
-                 courses.length > 0 ? 'bg-gray-400 hover:bg-gray-400' : ''
-              }`}
-          >
-            {isMigrating ? '正在遷移...' : (courses.length > 0 ? '數據已存在' : '將初始數據寫入 Firestore')}
-          </button>
+        <div className="mb-4 text-center">          
            <button
             onClick={handleAddNew}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors duration-300"
@@ -338,7 +252,7 @@ export default function AdminCoursesPage() {
                 
                 <div className="flex justify-end space-x-3 pt-3">
                   <button type="button" onClick={handleCancelForm} className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">取消</button>
-                  <button type="submit" disabled={isLoading} className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">{isLoading ? '處理中...' : (isEditing ? '更新課程' : '新增課程')}</button>
+                  <button type="submit" disabled={loading} className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">{loading ? '處理中...' : (isEditing ? '更新課程' : '新增課程')}</button>
                 </div>
               </form>
             </div>
@@ -347,15 +261,16 @@ export default function AdminCoursesPage() {
 
         {/* 課程列表 */} 
         <div className="mt-6 space-y-4">
-          {isLoading && !showForm ? (
+          {loading && !showForm ? (
              <p className="text-center text-gray-600 dark:text-gray-300">正在加載課程列表...</p>
            ) : courses.length > 0 ? (
             courses.map(course => (
               <div key={course.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex justify-between items-center">
                 <div>
                   <h3 className="font-semibold text-lg text-gray-900 dark:text-white">{course.title}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{course.date} - {course.location}</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500">ID: {course.id}</p> 
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{course.date} - {course.location}</p>                 
+                  <p className="text-sm text-gray-500 dark:text-gray-500">學員數: {course.students}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-500">價格: {course.price}</p>
                 </div>
                 <div className="space-x-2 flex-shrink-0">
                   <button onClick={() => handleEdit(course)} className="px-3 py-1 text-sm bg-yellow-500 text-white rounded hover:bg-yellow-600">編輯</button>
@@ -364,7 +279,7 @@ export default function AdminCoursesPage() {
               </div>
             ))
           ) : (
-            !isLoading && <p className="text-center text-gray-500 dark:text-gray-400">目前沒有課程資料。請點擊上方按鈕遷移或新增。</p> 
+            !loading && <p className="text-center text-gray-500 dark:text-gray-400">目前沒有課程資料。請點擊上方按鈕遷移或新增。</p> 
           )}
         </div>
 

@@ -11,7 +11,8 @@ import {
   doc,
   Timestamp,
   updateDoc,
-  getDoc
+  getDoc,
+  setDoc
 } from 'firebase/firestore';
 import { CalculationResults } from '../utils/calculations';
 
@@ -54,6 +55,30 @@ export interface Booking {
   notes: string;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
+}
+
+// 定義用戶資料介面
+export interface UserProfile {
+  id?: string;
+  loginName: string;
+  email: string;
+  realName: string;
+  birthDate: string;
+  gender: 'male' | 'female' | 'other';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// 定義 Deepseek 回答的介面
+export interface DeepseekAnswer {
+  id?: string;
+  userId: string;
+  date: string;
+  overall: string;
+  love: string;
+  career: string;
+  wealth: string;
+  createdAt: Timestamp;
 }
 
 // 新增歷史記錄條目
@@ -252,4 +277,131 @@ export const getUserBookings = async (userId: string) => {
   const q = query(bookingsRef, where('userId', '==', userId), orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[];
-}; 
+};
+
+// 檢查是否為管理員
+export async function isAdminUser(email: string): Promise<boolean> {
+  try {
+    const adminRef = collection(db, 'admin_users');
+    const q = query(adminRef, where('email', '==', email));
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty;
+  } catch (error) {
+    console.error('檢查管理員狀態時發生錯誤:', error);
+    return false;
+  }
+}
+
+// 添加管理員
+export async function addAdminUser(email: string): Promise<void> {
+  try {
+    const adminRef = collection(db, 'admin_users');
+    await addDoc(adminRef, {
+      email,
+      createdAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('添加管理員時發生錯誤:', error);
+    throw error;
+  }
+}
+
+// 獲取用戶資料
+export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
+  if (!userId) return null;
+  try {
+    const docRef = doc(db, 'user_profiles', userId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as UserProfile;
+    }
+    return null;
+  } catch (error) {
+    console.error('獲取用戶資料時發生錯誤:', error);
+    return null;
+  }
+};
+
+// 創建或更新用戶資料
+export const updateUserProfile = async (userId: string, profileData: Partial<UserProfile>): Promise<boolean> => {
+  if (!userId) return false;
+  try {
+    const docRef = doc(db, 'user_profiles', userId);
+    const now = new Date().toISOString();
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      // 更新現有資料
+      await updateDoc(docRef, {
+        ...profileData,
+        updatedAt: now
+      });
+    } else {
+      // 創建新資料
+      await setDoc(docRef, {
+        ...profileData,
+        createdAt: now,
+        updatedAt: now
+      });
+    }
+    return true;
+  } catch (error) {
+    console.error('更新用戶資料時發生錯誤:', error);
+    return false;
+  }
+};
+
+// 檢查用戶資料是否完整
+export const isUserProfileComplete = async (userId: string): Promise<boolean> => {
+  const profile = await getUserProfile(userId);
+  if (!profile) return false;
+  
+  // 檢查所有必填欄位是否都有值
+  return Boolean(
+    profile.loginName &&
+    profile.email &&
+    profile.realName &&
+    profile.birthDate &&
+    profile.gender
+  );
+};
+
+// 獲取今日的 Deepseek 回答
+export const getTodayDeepseekAnswer = async (userId: string): Promise<DeepseekAnswer | null> => {
+  if (!userId) return null;
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const answersRef = collection(db, 'deepseek_answer');
+    const q = query(
+      answersRef,
+      where('userId', '==', userId),
+      where('date', '==', today),
+      limit(1)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      return { id: doc.id, ...doc.data() } as DeepseekAnswer;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting deepseek answer:', error);
+    return null;
+  }
+};
+
+// 保存 Deepseek 回答
+export const saveDeepseekAnswer = async (answer: Omit<DeepseekAnswer, 'id' | 'createdAt'>): Promise<string | null> => {
+  try {
+    const docRef = await addDoc(collection(db, 'deepseek_answer'), {
+      ...answer,
+      createdAt: Timestamp.fromDate(new Date())
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error saving deepseek answer:', error);
+    return null;
+  }
+};
+
