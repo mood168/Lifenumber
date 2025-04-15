@@ -7,6 +7,7 @@ const nextConfig = {
     domains: ['images.unsplash.com', 'images.tonyai.work', 'test.tonyai.work'], // 添加 unsplash 域名
   },
   output: 'export',  // 使用靜態輸出
+  distDir: 'dist',  // 指定輸出目錄
   trailingSlash: true,  // 在每個頁面路徑後添加斜線
 };
 
